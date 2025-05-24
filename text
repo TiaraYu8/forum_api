@@ -1,0 +1,23 @@
+auth-api/                   
+├─ config/                 
+├─ migrations/             
+├─ src/                    
+│  ├─ Applications/         
+│  │  ├─ security/          
+│  │  ├─ use_case/         
+│  ├─ Commons/             
+│  │  ├─ exceptions/        
+│  ├─ Domains/              
+│  │  ├─ authentications/   
+│  │  ├─ users/             
+│  ├─ Infrastructures/      
+│  │  ├─ database/         
+│  │  ├─ http/              
+│  │  ├─ repositories/      
+│  │  ├─ security/         
+│  │  ├─ container.js      
+│  ├─ Interfaces/           
+│  ├─ app.js                
+├─ tests/                   
+├─ .env                     
+├─ package.json             
