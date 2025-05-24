@@ -5,6 +5,7 @@ const AddedThread = require('../../../Domains/threads/entities/AddedThread');
 const InvariantError = require('../../../Commons/exceptions/InvariantError');
 const pool = require('../../database/postgres/pool');
 const ThreadRepositoryPostgres = require('../ThreadRepositoryPostgres');
+const NotFoundError = require('../../../Commons/exceptions/NotFoundError');
 
 describe('ThreadRepositoryPostgres', () => {
   beforeEach(async () => {
@@ -102,7 +103,7 @@ describe('ThreadRepositoryPostgres', () => {
 
       // Action & Assert
       await expect(threadRepositoryPostgres.getThreadById('thread-xxx'))
-        .rejects.toThrowError(InvariantError);
+        .rejects.toThrowError(NotFoundError);
     });
   });
 });
