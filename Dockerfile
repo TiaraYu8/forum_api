@@ -4,20 +4,19 @@ FROM node:18-alpine
 # Create app directory
 WORKDIR /usr/src/app
 
-# Copy package files
-COPY package*.json ./
+# Copy package.json dan package-lock.json
+COPY package.json package-lock.json ./
 
-# Install dependencies
+# Install dependencies in production mode
 RUN npm ci --only=production
 
 # Copy source code
 COPY . .
 
 # Create non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 
-# Change ownership
+# Change ownership to the non-root user
 RUN chown -R nodejs:nodejs /usr/src/app
 USER nodejs
 
