@@ -75,6 +75,7 @@ jobs:
         ACCESS_TOKEN_AGE: 3000
 
   build-and-deploy:
+    environment: forum_api_project
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
