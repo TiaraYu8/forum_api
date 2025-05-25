@@ -20,7 +20,7 @@ jobs:
         image: postgres:13
         env:
           POSTGRES_PASSWORD: password
-          POSTGRES_DB: forumapi_test
+          POSTGRES_DB: forum_api_test
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
