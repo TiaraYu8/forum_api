@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main ]
 
+run: |
+  echo "DOCKER_USER=${DOCKER_USERNAME}" >> $GITHUB_ENV
+  echo "DOCKER_PASS=${DOCKER_TOKEN}" >> $GITHUB_ENV
 env:
   DOCKER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/forum-api
   EC2_HOST: ${{ secrets.EC2_HOST }}
