@@ -42,7 +42,6 @@ class CommentsHandler {
 
     return {
       status: 'success',
-      message: 'Komentar berhasil dihapus',
     };
   }
 }

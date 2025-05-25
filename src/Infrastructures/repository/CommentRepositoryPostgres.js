@@ -1,4 +1,4 @@
-// const InvariantError = require('../../Commons/exceptions/InvariantError');
+const InvariantError = require('../../Commons/exceptions/InvariantError');
 const AddedComment = require('../../Domains/comments/entities/AddedComment');
 const CommentRepository = require('../../Domains/comments/CommentRepository');
 const NotFoundError = require('../../Commons/exceptions/NotFoundError');
@@ -26,30 +26,28 @@ class CommentRepositoryPostgres extends CommentRepository {
 
   async deleteComment(commentId) {
     const query = {
-      text: 'DELETE FROM comments WHERE id = $1',
+      text: 'UPDATE comments SET is_delete = TRUE WHERE id = $1',
       values: [commentId],
     };
 
     const result = await this._pool.query(query);
 
-    if (!result.rowCount) {
-      throw new NotFoundError('comment tidak ditemukan');
-    }
+    return result.rowCount;
   }
 
   async findCommentById(commentId) {
     const query = {
-      text: 'SELECT * FROM comments WHERE id = $1',
+      text: 'SELECT * FROM comments WHERE id = $1 AND is_delete = FALSE',
       values: [commentId],
     };
   
-    console.log('findCommentById query values:', query.values); // ✅ Debug
+    console.log('findCommentById query values:', query.values); 
     
     const result = await this._pool.query(query);
     
-    console.log('findCommentById result:', result.rows); // ✅ Debug
+    console.log('findCommentById result:', result.rows); 
     
-    return result.rows; // Return array, jangan throw error
+    return result.rows;
   }
   
   

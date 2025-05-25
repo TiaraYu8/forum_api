@@ -10,6 +10,7 @@ const bcrypt = require('bcrypt');
 describe('Comments endpoint', () => {
   let accessToken;
   let threadId;
+  let passwordHash;
 
   beforeAll(async () => {
     const passwordHash = new BcryptPasswordHash(bcrypt);
@@ -172,10 +173,12 @@ describe('Comments endpoint', () => {
 
     expect(deleteResponse.statusCode).toEqual(200);
     expect(deleteResponseJson.status).toEqual('success');
+    expect(deleteResponseJson.data).toBeUndefined();
 
     // Verifikasi comment sudah terhapus
-    const comments = await CommentsTableTestHelper.findCommentById(commentId);
-    expect(comments).toHaveLength(0);
+    const verification = await CommentsTableTestHelper.verifyCommentSoftDeleted(commentId);
+    expect(verification.exists).toBe(true);
+    expect(verification.isSoftDeleted).toBe(true);
   });
 
   it('should response 404 when delete comment that does not exist', async () => {
@@ -191,6 +194,58 @@ describe('Comments endpoint', () => {
 
     const responseJson = JSON.parse(response.payload);
     expect(response.statusCode).toEqual(404);
+    expect(responseJson.status).toEqual('fail');
+    expect(responseJson.message).toBeDefined();
+  });
+
+  it('should response 403 when user is not the owner', async () => {
+    const server = await createServer(container);
+  
+    // Buat user kedua
+    const passwordHash = new BcryptPasswordHash(bcrypt);
+    await UsersTableTestHelper.addUser({
+      id: 'user-456',
+      username: 'otheruser',
+      password: await passwordHash.hash('secret_password'),
+      fullname: 'Other User',
+    });
+  
+    // Login sebagai user kedua
+    const loginResponse = await server.inject({
+      method: 'POST',
+      url: '/authentications',
+      payload: {
+        username: 'otheruser',
+        password: 'secret_password',
+      },
+    });
+    const otherAccessToken = JSON.parse(loginResponse.payload).data.accessToken;
+  
+    // Tambah comment sebagai user pertama
+    const addCommentResponse = await server.inject({
+      method: 'POST',
+      url: `/threads/${threadId}/comments`,
+      payload: {
+        content: 'Komentar milik user pertama',
+      },
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    
+    const commentId = JSON.parse(addCommentResponse.payload).data.addedComment.id;
+  
+    // Coba hapus sebagai user kedua
+    const deleteResponse = await server.inject({
+      method: 'DELETE',
+      url: `/threads/${threadId}/comments/${commentId}`,
+      headers: {
+        Authorization: `Bearer ${otherAccessToken}`, // ✅ User yang berbeda
+      },
+    });
+  
+    const responseJson = JSON.parse(deleteResponse.payload);
+    expect(deleteResponse.statusCode).toEqual(403);
     expect(responseJson.status).toEqual('fail');
     expect(responseJson.message).toBeDefined();
   });

@@ -7,10 +7,11 @@ const CommentsTableTestHelper = {
     content = 'Sebuah Content',
     thread_id = 'thread-123',
     owner = 'user-123',
+    is_delete = false,
   }) {
     const query = {
-      text: 'INSERT INTO comments (id, content, thread_id, owner) VALUES($1, $2, $3, $4)',
-      values: [id, content, thread_id, owner],
+      text: 'INSERT INTO comments (id, content, thread_id, owner, is_delete) VALUES($1, $2, $3, $4, $5)',
+      values: [id, content, thread_id, owner, is_delete],
     };
 
     await pool.query(query);
@@ -26,14 +27,31 @@ const CommentsTableTestHelper = {
     return result.rows;
   },
 
-  async deleteComment(id) {
+  async findCommentByIdIncludingDeleted(id) {
     const query = {
-      text: 'DELETE FROM comments WHERE id = $1',
+      text: 'SELECT * FROM comments WHERE id = $1',
       values: [id],
     };
 
     const result = await pool.query(query);
-    return result.rowCount;
+    return result.rows;
+  },
+
+  async isCommentSoftDeleted(id) {
+    const comments = await this.findCommentByIdIncludingDeleted(id);
+    if (comments.length === 0) {
+      return false;
+    }
+    return comments[0].is_delete === true;
+  },
+
+  async verifyCommentSoftDeleted(id) {
+    const comments = await this.findCommentByIdIncludingDeleted(id);
+    return {
+      exists: comments.length > 0,
+      isSoftDeleted: comments.length > 0 ? comments[0].is_delete : false,
+      comment: comments[0] || null
+    };
   },
 
   async cleanTable() {

@@ -13,7 +13,15 @@ class DeleteCommentUseCase {
     console.log('UseCase commentId:', commentId);
     console.log('UseCase userId:', owner);
     
-    const thread = await this._threadRepository.getThreadById(threadId);
+    try {
+      await this._threadRepository.getThreadById(threadId);
+    } catch (error) {
+      // Jika getThreadById throw NotFoundError, re-throw dengan message yang konsisten
+      if (error instanceof NotFoundError || error.name === 'NotFoundError') {
+        throw new NotFoundError('Thread tidak ditemukan');
+      }
+      throw error; // Re-throw error lain
+    }
 
     const comments = await this._commentRepository.findCommentById(commentId);
     if (!comments.length) {
