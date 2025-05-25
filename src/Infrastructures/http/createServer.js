@@ -54,6 +54,8 @@ const createServer = async (container) => {
     },
   ]);
 
+  console.log(server.table());
+  
   server.ext('onPreResponse', (request, h) => {
     // mendapatkan konteks response dari request
     const { response } = request;
