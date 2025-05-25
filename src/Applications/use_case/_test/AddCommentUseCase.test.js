@@ -17,7 +17,6 @@ describe('AddCommentUseCase', () => {
       owner,
     };
 
-    // ✅ Mock threadRepository untuk validasi thread
     const mockThreadRepository = {
       getThreadById: jest.fn(() => Promise.resolve({ id: threadId })),
     };
@@ -26,7 +25,6 @@ describe('AddCommentUseCase', () => {
       addComment: jest.fn().mockResolvedValue(expectedAddedComment),
     };
 
-    // ✅ Inject threadRepository juga
     const addCommentUseCase = new AddCommentUseCase({
       commentRepository: mockCommentRepository,
       threadRepository: mockThreadRepository,
@@ -91,7 +89,6 @@ describe('AddCommentUseCase', () => {
     const threadId = 'thread-123';
     const owner = 'user-123';
 
-    // ✅ Error dengan name 'NotFoundError' tapi bukan instance NotFoundError
     const customError = new Error('Custom thread not found');
     customError.name = 'NotFoundError';
 
@@ -125,7 +122,6 @@ describe('AddCommentUseCase', () => {
     const threadId = 'thread-123';
     const owner = 'user-123';
 
-    // ✅ Error yang bukan NotFoundError
     const databaseError = new Error('Database connection failed');
 
     const mockThreadRepository = {
@@ -153,7 +149,6 @@ describe('AddCommentUseCase', () => {
   it('should handle AddComment entity validation errors', async () => {
     // Arrange
     const invalidPayload = {
-      // ✅ Payload tidak valid untuk test entity validation
       content: 123, // Seharusnya string
     };
     const threadId = 'thread-123';

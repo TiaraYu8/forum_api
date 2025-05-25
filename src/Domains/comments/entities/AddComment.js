@@ -7,7 +7,7 @@ class AddComment {
       this.content = content;
     }
   
-    _verifyPayload({ content, body }) {
+    _verifyPayload({ content}) {
       if (!content) {
         throw new Error('ADD_COMMENT.NOT_CONTAIN_NEEDED_PROPERTY');
       }

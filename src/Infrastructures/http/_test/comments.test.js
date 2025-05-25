@@ -240,7 +240,7 @@ describe('Comments endpoint', () => {
       method: 'DELETE',
       url: `/threads/${threadId}/comments/${commentId}`,
       headers: {
-        Authorization: `Bearer ${otherAccessToken}`, // ✅ User yang berbeda
+        Authorization: `Bearer ${otherAccessToken}`,
       },
     });
   

@@ -1,7 +1,7 @@
-// const InvariantError = require('../../Commons/exceptions/InvariantError');
 const NotFoundError = require('../../Commons/exceptions/NotFoundError');
 const AddedThread = require('../../Domains/threads/entities/AddedThread');
 const ThreadRepository = require('../../Domains/threads/ThreadRepository');
+const GetThread = require('../../Domains/threads/entities/GetThread');
 
 class ThreadRepositoryPostgres extends ThreadRepository {
   constructor(pool, idGenerator) {
@@ -44,6 +44,73 @@ class ThreadRepositoryPostgres extends ThreadRepository {
     }
   
     return result.rows[0];
+  }
+
+  async getThreadDetailById(threadId) {
+    try {
+      const query = {
+        text: `
+          SELECT 
+            t.id,
+            t.title,
+            t.body,
+            t.created_at as date,
+            u.username,
+            c.id as comment_id,
+            c.content as comment_content,
+            c.created_at as comment_date,
+            c.is_delete as comment_is_delete,
+            cu.username as comment_username
+          FROM threads t
+          LEFT JOIN users u ON t.owner = u.id
+          LEFT JOIN comments c ON t.id = c.thread_id
+          LEFT JOIN users cu ON c.owner = cu.id
+          WHERE t.id = $1
+          ORDER BY c.created_at ASC
+        `,
+        values: [threadId],
+      };
+
+      console.log('Repository query:', query);
+
+      const result = await this._pool.query(query);
+      
+      console.log('Repository result rowCount:', result.rowCount); 
+      console.log('Repository result rows:', result.rows); 
+
+      if (!result.rowCount) {
+        throw new NotFoundError('Thread tidak ditemukan');
+      }
+
+      // Process hasil query
+      const threadData = result.rows[0];
+      const comments = result.rows
+        .filter(row => row.comment_id)
+        .map(row => ({
+          id: row.comment_id,
+          username: row.comment_username,
+          date: row.comment_date,
+          content: row.comment_is_delete ? '**komentar telah dihapus**' : row.comment_content,
+        }));
+
+      console.log('Processed comments:', comments);
+
+      const getThread = new GetThread({
+        id: threadData.id,
+        title: threadData.title,
+        body: threadData.body,
+        date: threadData.date,
+        username: threadData.username,
+        comments,
+      });
+
+      console.log('Created GetThread:', getThread);
+
+      return getThread;
+    } catch (error) {
+      console.error('Repository error:', error); 
+      throw error;
+    }
   }
 }  
 
