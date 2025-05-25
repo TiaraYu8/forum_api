@@ -48,8 +48,8 @@ jobs:
         PGHOST: localhost
         PGPORT: 5432
         PGDATABASE: forum_api_test
-        PGUSER: postgres
-        PGPASSWORD: password
+        PGUSER: tiara
+        PGPASSWORD: tiara
 
     - name: Run tests
       run: npm test
@@ -57,8 +57,8 @@ jobs:
         PGHOST: localhost
         PGPORT: 5432
         PGDATABASE: forum_api_test
-        PGUSER: postgres
-        PGPASSWORD: password
+        PGUSER: tiara
+        PGPASSWORD: tiara
         ACCESS_TOKEN_KEY: test-access-token-key
         REFRESH_TOKEN_KEY: test-refresh-token-key
         ACCESS_TOKEN_AGE: 3000
