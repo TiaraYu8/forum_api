@@ -1,5 +1,6 @@
 const AuthorizationError = require ('../../Commons/exceptions/AuthorizationError');
-const NotFoundError =require('../../Commons/exceptions/NotFoundError');
+const CommentAccessError = require('../../Domains/comments/exceptions/CommentAccessError');
+const CommentNotFoundError = require('../../Domains/comments/exceptions/CommentNotFoundError');
 
 class DeleteCommentUseCase {
   constructor({ commentRepository, threadRepository }) {
@@ -12,24 +13,13 @@ class DeleteCommentUseCase {
     console.log('UseCase threadId:', threadId);
     console.log('UseCase commentId:', commentId);
     console.log('UseCase userId:', owner);
-    
-    try {
-      await this._threadRepository.getThreadById(threadId);
-    } catch (error) {
-      // Jika getThreadById throw NotFoundError, re-throw dengan message yang konsisten
-      if (error instanceof NotFoundError || error.name === 'NotFoundError') {
-        throw new NotFoundError('Thread tidak ditemukan');
-      }
-      throw error; // Re-throw error lain
-    }
+
+    await this._threadRepository.getThreadById(threadId);
 
     const comments = await this._commentRepository.findCommentById(commentId);
-    if (!comments.length) {
-      throw new NotFoundError('Komentar tidak ditemukan');
-    }
 
     if (comments[0].owner !== owner) {
-      throw new AuthorizationError('Anda tidak berhak menghapus komentar ini');
+      throw new CommentAccessError('Anda tidak berhak menghapus komentar ini');
     }
     await this._commentRepository.deleteComment(commentId);
   }

@@ -9,15 +9,7 @@ class AddCommentUseCase {
 
   async execute(useCasePayload, threadId, owner) {
 
-    try {
-      await this._threadRepository.getThreadById(threadId);
-    } catch (error) {
-      // Jika getThreadById throw NotFoundError, re-throw dengan message yang konsisten
-      if (error instanceof NotFoundError || error.name === 'NotFoundError') {
-        throw new NotFoundError('Thread tidak ditemukan');
-      }
-      throw error; // Re-throw error lain
-    }
+    await this._threadRepository.getThreadById(threadId);
 
     const addComment = new AddComment(useCasePayload);
     const addedComment = await this._commentRepository.addComment(addComment, threadId, owner);

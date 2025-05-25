@@ -1,9 +1,8 @@
-const GetThreadDetailByIdUseCase = require('../GetThreadDetailByIdUseCase');
+const GetThreadDetailUseCase = require('../GetThreadDetailByIdUseCase'); 
 const ThreadDetailService = require('../../../Domains/threads/services/ThreadDetailService');
-const GetThread = require('../../../Domains/threads/entities/GetThread');
-const NotFoundError = require('../../../Commons/exceptions/NotFoundError');
+const ThreadNotFoundError = require('../../../Domains/threads/exceptions/ThreadNotFoundError'); 
 
-describe('GetThreadDetailByIdUseCase', () => {
+describe('GetThreadDetailUseCase', () => {
   it('should orchestrate the get thread detail action correctly', async () => {
     // Arrange
     const threadId = 'thread-123';
@@ -40,49 +39,59 @@ describe('GetThreadDetailByIdUseCase', () => {
     };
 
     const mockThreadRepository = {
-      getThreadDetailById: jest.fn(() => Promise.resolve(mockRawDataFromRepository)), 
+      getThreadDetailById: jest.fn(() => Promise.resolve(mockRawDataFromRepository)),
     };
 
-    const getThreadDetailByIdUseCase = new GetThreadDetailByIdUseCase({
+    const getThreadDetailUseCase = new GetThreadDetailUseCase({
       threadRepository: mockThreadRepository,
     });
 
     // Action
-    const thread = await getThreadDetailByIdUseCase.execute(threadId);
+    const thread = await getThreadDetailUseCase.execute(threadId);
 
-    // Assert
-    expect(mockThreadRepository.getThreadDetailById).toBeCalledWith(threadId);
-    expect(thread).toStrictEqual(expectedThreadDetail); 
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenCalledTimes(1);
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenCalledWith(threadId);
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenNthCalledWith(1, threadId);
+    
+    expect(thread).toEqual(expectedThreadDetail);
+    expect(thread).toHaveProperty('id', 'thread-123');
+    expect(thread).toHaveProperty('title', 'Thread Title');
+    expect(thread).toHaveProperty('body', 'Thread Body');
+    expect(thread).toHaveProperty('date', '2021-08-08T07:19:09.775Z');
+    expect(thread).toHaveProperty('username', 'dicoding');
+    expect(thread).toHaveProperty('comments');
+    expect(Array.isArray(thread.comments)).toBe(true);
+    expect(thread.comments).toHaveLength(1);
   });
 
   it('should format deleted comments correctly', async () => {
     // Arrange
-    const threadId = 'thread-123';
+    const threadId = 'thread-456';
     
     const mockRawDataWithDeletedComment = [
       {
-        id: 'thread-123',
-        title: 'Thread Title',
+        id: 'thread-456',
+        title: 'Thread With Deleted Comment',
         body: 'Thread Body',
         date: '2021-08-08T07:19:09.775Z',
         username: 'dicoding',
-        comment_id: 'comment-123',
-        comment_content: 'Komentar asli yang dihapus', 
+        comment_id: 'comment-456',
+        comment_content: 'Komentar asli yang dihapus',
         comment_date: '2021-08-08T07:22:33.555Z',
-        comment_is_delete: true, 
+        comment_is_delete: true,
         comment_username: 'johndoe',
       },
     ];
 
     const expectedThreadWithDeletedComment = {
-      id: 'thread-123',
-      title: 'Thread Title',
+      id: 'thread-456',
+      title: 'Thread With Deleted Comment',
       body: 'Thread Body',
       date: '2021-08-08T07:19:09.775Z',
       username: 'dicoding',
       comments: [
         {
-          id: 'comment-123',
+          id: 'comment-456',
           username: 'johndoe',
           date: '2021-08-08T07:22:33.555Z',
           content: '**komentar telah dihapus**',
@@ -94,29 +103,37 @@ describe('GetThreadDetailByIdUseCase', () => {
       getThreadDetailById: jest.fn(() => Promise.resolve(mockRawDataWithDeletedComment)),
     };
 
-    const getThreadDetailByIdUseCase = new GetThreadDetailByIdUseCase({
+    const getThreadDetailUseCase = new GetThreadDetailUseCase({
       threadRepository: mockThreadRepository,
     });
 
     // Action
-    const thread = await getThreadDetailByIdUseCase.execute(threadId);
+    const thread = await getThreadDetailUseCase.execute(threadId);
 
-    // Assert
-    expect(mockThreadRepository.getThreadDetailById).toBeCalledWith(threadId);
-    expect(thread).toStrictEqual(expectedThreadWithDeletedComment);
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenCalledTimes(1);
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenCalledWith(threadId);
+    expect(mockThreadRepository.getThreadDetailById).toHaveReturnedWith(
+      Promise.resolve(mockRawDataWithDeletedComment)
+    );
+    
+    expect(thread).toEqual(expectedThreadWithDeletedComment);
+    expect(thread.comments[0].content).toEqual('**komentar telah dihapus**');
+    expect(thread.comments[0]).toHaveProperty('id', 'comment-456');
+    expect(thread.comments[0]).toHaveProperty('username', 'johndoe');
+    expect(thread.comments[0]).toHaveProperty('date', '2021-08-08T07:22:33.555Z');
   });
 
   it('should handle thread with no comments', async () => {
     // Arrange
-    const threadId = 'thread-123';
+    const threadId = 'thread-789';
     
     const mockRawDataNoComments = [
       {
-        id: 'thread-123',
-        title: 'Thread Title',
-        body: 'Thread Body',
-        date: '2021-08-08T07:19:09.775Z',
-        username: 'dicoding',
+        id: 'thread-789',
+        title: 'Thread Without Comments',
+        body: 'Thread Body Without Comments',
+        date: '2021-08-08T08:00:00.000Z',
+        username: 'user123',
         comment_id: null,
         comment_content: null,
         comment_date: null,
@@ -126,38 +143,45 @@ describe('GetThreadDetailByIdUseCase', () => {
     ];
 
     const expectedThreadWithoutComments = {
-      id: 'thread-123',
-      title: 'Thread Title',
-      body: 'Thread Body',
-      date: '2021-08-08T07:19:09.775Z',
-      username: 'dicoding',
-      comments: [], 
+      id: 'thread-789',
+      title: 'Thread Without Comments',
+      body: 'Thread Body Without Comments',
+      date: '2021-08-08T08:00:00.000Z',
+      username: 'user123',
+      comments: [],
     };
 
     const mockThreadRepository = {
       getThreadDetailById: jest.fn(() => Promise.resolve(mockRawDataNoComments)),
     };
 
-    const getThreadDetailByIdUseCase = new GetThreadDetailByIdUseCase({
+    const getThreadDetailUseCase = new GetThreadDetailUseCase({
       threadRepository: mockThreadRepository,
     });
 
     // Action
-    const thread = await getThreadDetailByIdUseCase.execute(threadId);
+    const thread = await getThreadDetailUseCase.execute(threadId);
 
-    // Assert
-    expect(mockThreadRepository.getThreadDetailById).toBeCalledWith(threadId);
-    expect(thread).toStrictEqual(expectedThreadWithoutComments);
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenCalledTimes(1);
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenCalledWith(threadId);
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenCalledWith(
+      expect.stringMatching(/^thread-/)
+    );
+    
+    expect(thread).toEqual(expectedThreadWithoutComments);
+    expect(thread.comments).toEqual([]);
+    expect(Array.isArray(thread.comments)).toBe(true);
+    expect(thread.comments).toHaveLength(0);
   });
 
   it('should handle thread with multiple comments in correct order', async () => {
     // Arrange
-    const threadId = 'thread-123';
+    const threadId = 'thread-multi';
     
     const mockRawDataMultipleComments = [
       {
-        id: 'thread-123',
-        title: 'Thread Title',
+        id: 'thread-multi',
+        title: 'Thread Multiple Comments',
         body: 'Thread Body',
         date: '2021-08-08T07:19:09.775Z',
         username: 'dicoding',
@@ -168,8 +192,8 @@ describe('GetThreadDetailByIdUseCase', () => {
         comment_username: 'user1',
       },
       {
-        id: 'thread-123',
-        title: 'Thread Title',
+        id: 'thread-multi',
+        title: 'Thread Multiple Comments',
         body: 'Thread Body',
         date: '2021-08-08T07:19:09.775Z',
         username: 'dicoding',
@@ -179,11 +203,23 @@ describe('GetThreadDetailByIdUseCase', () => {
         comment_is_delete: true,
         comment_username: 'user2',
       },
+      {
+        id: 'thread-multi',
+        title: 'Thread Multiple Comments',
+        body: 'Thread Body',
+        date: '2021-08-08T07:19:09.775Z',
+        username: 'dicoding',
+        comment_id: 'comment-003',
+        comment_content: 'Komentar ketiga',
+        comment_date: '2021-08-08T07:30:00.000Z',
+        comment_is_delete: false,
+        comment_username: 'user3',
+      },
     ];
 
     const expectedThreadWithMultipleComments = {
-      id: 'thread-123',
-      title: 'Thread Title',
+      id: 'thread-multi',
+      title: 'Thread Multiple Comments',
       body: 'Thread Body',
       date: '2021-08-08T07:19:09.775Z',
       username: 'dicoding',
@@ -200,6 +236,12 @@ describe('GetThreadDetailByIdUseCase', () => {
           date: '2021-08-08T07:25:00.000Z',
           content: '**komentar telah dihapus**',
         },
+        {
+          id: 'comment-003',
+          username: 'user3',
+          date: '2021-08-08T07:30:00.000Z',
+          content: 'Komentar ketiga',
+        },
       ],
     };
 
@@ -207,36 +249,136 @@ describe('GetThreadDetailByIdUseCase', () => {
       getThreadDetailById: jest.fn(() => Promise.resolve(mockRawDataMultipleComments)),
     };
 
-    const getThreadDetailByIdUseCase = new GetThreadDetailByIdUseCase({
+    const getThreadDetailUseCase = new GetThreadDetailUseCase({
       threadRepository: mockThreadRepository,
     });
 
     // Action
-    const thread = await getThreadDetailByIdUseCase.execute(threadId);
+    const thread = await getThreadDetailUseCase.execute(threadId);
 
-    // Assert
-    expect(mockThreadRepository.getThreadDetailById).toBeCalledWith(threadId);
-    expect(thread).toStrictEqual(expectedThreadWithMultipleComments);
-    expect(thread.comments).toHaveLength(2);
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenCalledTimes(1);
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenCalledWith(threadId);
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenLastCalledWith(threadId);
+    
+    expect(thread).toEqual(expectedThreadWithMultipleComments);
+    expect(thread.comments).toHaveLength(3);
+    expect(thread.comments[0].content).toEqual('Komentar pertama');
+    expect(thread.comments[1].content).toEqual('**komentar telah dihapus**');
+    expect(thread.comments[2].content).toEqual('Komentar ketiga');
+    
+    expect(thread.comments[0].date).toEqual('2021-08-08T07:20:00.000Z');
+    expect(thread.comments[1].date).toEqual('2021-08-08T07:25:00.000Z');
+    expect(thread.comments[2].date).toEqual('2021-08-08T07:30:00.000Z');
   });
 
-  it('should throw NotFoundError when thread is not found', async () => {
+  it('should throw ThreadNotFoundError when thread is not found', async () => {
     // Arrange
     const threadId = 'thread-nonexistent';
 
     const mockThreadRepository = {
-      getThreadDetailById: jest.fn(() => Promise.reject(new NotFoundError('Thread tidak ditemukan'))),
+      getThreadDetailById: jest.fn(() => Promise.reject(new ThreadNotFoundError('Thread tidak ditemukan'))),
     };
 
-    const getThreadDetailByIdUseCase = new GetThreadDetailByIdUseCase({
+    const getThreadDetailUseCase = new GetThreadDetailUseCase({
       threadRepository: mockThreadRepository,
     });
 
     // Action & Assert
-    await expect(getThreadDetailByIdUseCase.execute(threadId))
+    await expect(getThreadDetailUseCase.execute(threadId))
       .rejects
-      .toThrow(NotFoundError);
+      .toThrow(ThreadNotFoundError);
+      
+    await expect(getThreadDetailUseCase.execute(threadId))
+      .rejects
+      .toThrow('Thread tidak ditemukan');
 
-    expect(mockThreadRepository.getThreadDetailById).toBeCalledWith(threadId);
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenCalledTimes(2); // Called twice due to two expects
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenCalledWith(threadId);
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenNthCalledWith(1, threadId);
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenNthCalledWith(2, threadId);
+  });
+
+  it('should handle empty thread ID gracefully', async () => {
+    // Arrange
+    const threadId = '';
+
+    const mockThreadRepository = {
+      getThreadDetailById: jest.fn(() => Promise.reject(new ThreadNotFoundError('Thread tidak ditemukan'))),
+    };
+
+    const getThreadDetailUseCase = new GetThreadDetailUseCase({
+      threadRepository: mockThreadRepository,
+    });
+
+    // Action & Assert
+    await expect(getThreadDetailUseCase.execute(threadId))
+      .rejects
+      .toThrow(ThreadNotFoundError);
+
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenCalledWith('');
+  });
+
+  it('should handle null thread ID gracefully', async () => {
+    // Arrange
+    const threadId = null;
+
+    const mockThreadRepository = {
+      getThreadDetailById: jest.fn(() => Promise.reject(new ThreadNotFoundError('Thread tidak ditemukan'))),
+    };
+
+    const getThreadDetailUseCase = new GetThreadDetailUseCase({
+      threadRepository: mockThreadRepository,
+    });
+
+    // Action & Assert
+    await expect(getThreadDetailUseCase.execute(threadId))
+      .rejects
+      .toThrow(ThreadNotFoundError);
+
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenCalledWith(null);
+  });
+
+  it('should use ThreadDetailService to format raw data correctly', async () => {
+    // Arrange
+    const threadId = 'thread-service-test';
+    
+    const mockRawData = [
+      {
+        id: 'thread-service-test',
+        title: 'Service Test Thread',
+        body: 'Service Test Body',
+        date: '2021-08-08T07:19:09.775Z',
+        username: 'testuser',
+        comment_id: 'comment-service',
+        comment_content: 'Service test comment',
+        comment_date: '2021-08-08T07:22:33.555Z',
+        comment_is_delete: false,
+        comment_username: 'commenter',
+      },
+    ];
+
+    const mockThreadRepository = {
+      getThreadDetailById: jest.fn(() => Promise.resolve(mockRawData)),
+    };
+
+    const formatSpy = jest.spyOn(ThreadDetailService, 'formatThreadDetail');
+
+    const getThreadDetailUseCase = new GetThreadDetailUseCase({
+      threadRepository: mockThreadRepository,
+    });
+
+    // Action
+    const thread = await getThreadDetailUseCase.execute(threadId);
+
+    expect(formatSpy).toHaveBeenCalledTimes(1);
+    expect(formatSpy).toHaveBeenCalledWith(mockRawData);
+    expect(mockThreadRepository.getThreadDetailById).toHaveBeenCalledWith(threadId);
+    
+    expect(thread).toHaveProperty('id', 'thread-service-test');
+    expect(thread).toHaveProperty('comments');
+    expect(thread.comments[0]).toHaveProperty('content', 'Service test comment');
+
+    // Cleanup
+    formatSpy.mockRestore();
   });
 });
