@@ -1,6 +1,6 @@
 {
-  "user": "tiara",
-  "password": "tiara",
+  "user": "postgres",
+  "password": "password",
   "host": "localhost",
   "port": 5432,
   "database": "forum_api_test"
