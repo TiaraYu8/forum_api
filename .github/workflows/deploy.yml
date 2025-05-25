@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: [ main ]
 
-run: |
-  echo "DOCKER_USER=${DOCKER_USERNAME}" >> $GITHUB_ENV
-  echo "DOCKER_PASS=${DOCKER_TOKEN}" >> $GITHUB_ENV
 env:
   DOCKER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/forum-api
   EC2_HOST: ${{ secrets.EC2_HOST }}
@@ -24,6 +21,7 @@ jobs:
         env:
           POSTGRES_PASSWORD: password
           POSTGRES_DB: forum_api_test
+          POSTGRES_USER: postgres  # ✅ Tambahkan ini
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -36,6 +34,17 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    # ✅ Debug step untuk secrets - pindahkan ke sini
+    - name: Debug Docker secrets
+      run: |
+        echo "DOCKER_USER=${DOCKER_USERNAME}" >> $GITHUB_ENV
+        echo "DOCKER_PASS=${DOCKER_TOKEN}" >> $GITHUB_ENV
+        echo "Docker username length: ${#DOCKER_USERNAME}"
+        echo "Docker token length: ${#DOCKER_TOKEN}"
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        DOCKER_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
@@ -46,7 +55,7 @@ jobs:
       run: npm ci
 
     - name: Run database migrations
-      run: npm run migrate:test up
+      run: npm run migrate:test  # ✅ Hapus "up"
       env:
         PGHOST: localhost
         PGPORT: 5432
@@ -75,14 +84,25 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    # ✅ Debug step untuk deployment
+    - name: Debug deployment secrets
+      run: |
+        echo "EC2_HOST length: ${#EC2_HOST}"
+        echo "EC2_USER length: ${#EC2_USER}"
+        echo "Docker image: $DOCKER_IMAGE"
+      env:
+        EC2_HOST: ${{ secrets.EC2_HOST }}
+        EC2_USER: ${{ secrets.EC2_USER }}
+        DOCKER_IMAGE: ${{ env.DOCKER_IMAGE }}
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
     - name: Login to Docker Hub
       uses: docker/login-action@v3
       with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        username: ${{ env.DOCKER_USERNAME }}  # ✅ Gunakan env yang sudah di-set
+        password: ${{ env.DOCKER_TOKEN }}
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
@@ -102,20 +122,9 @@ jobs:
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_PRIVATE_KEY }}
         script: |
-          # Stop and remove existing containers
-          docker-compose -f /home/${{ secrets.EC2_USER }}/forum-api/docker-compose.prod.yml down || true
-          
-          # Pull latest image
-          docker pull ${{ env.DOCKER_IMAGE }}:latest
-          
-          # Update docker-compose file
           cd /home/${{ secrets.EC2_USER }}/forum-api
-          
-          # Start new containers
-          docker-compose -f docker-compose.prod.yml up -d
-          
-          # Run migrations
-          docker-compose -f docker-compose.prod.yml exec -T app npm run migrate
-          
-          # Clean up unused images
-          docker image prune -f
+          git pull origin main
+          npm install --production
+          npm run migrate
+          pm2 restart forum-api || pm2 start src/app.js --name forum-api
+          pm2 save
