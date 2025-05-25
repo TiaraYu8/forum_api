@@ -3,13 +3,16 @@ const CommentsTableTestHelper = require('../../../../tests/CommentsTableTestHelp
 const UsersTableTestHelper = require('../../../../tests/UsersTableTestHelper');
 const AddThread = require('../../../Domains/threads/entities/AddThread');
 const AddedThread = require('../../../Domains/threads/entities/AddedThread');
-const GetThread = require('../../../Domains/threads/entities/GetThread'); 
 const pool = require('../../database/postgres/pool');
 const ThreadRepositoryPostgres = require('../ThreadRepositoryPostgres');
 const NotFoundError = require('../../../Commons/exceptions/NotFoundError');
 
 describe('ThreadRepositoryPostgres', () => {
   beforeEach(async () => {
+    await CommentsTableTestHelper.cleanTable();
+    await ThreadsTableTestHelper.cleanTable();
+    await UsersTableTestHelper.cleanTable();
+
     await UsersTableTestHelper.addUser({ 
       id: 'user-123', 
       username: 'dicoding',
@@ -42,9 +45,7 @@ describe('ThreadRepositoryPostgres', () => {
         title: 'Test Thread',
         body: 'Test Body',
       });
-
-      const owner= 'user-123';
-
+      const owner = 'user-123';
       const fakeIdGenerator = () => '123';
       const threadRepositoryPostgres = new ThreadRepositoryPostgres(pool, fakeIdGenerator);
 
@@ -54,21 +55,25 @@ describe('ThreadRepositoryPostgres', () => {
       // Assert
       const threads = await ThreadsTableTestHelper.findThreadsById('thread-123');
       expect(threads).toHaveLength(1);
-      expect(addedThread).toStrictEqual(new AddedThread({
-        id: 'thread-123',
-        title: 'Test Thread',
-        owner: 'user-123',
-      }));
+      
+      expect(addedThread).toBeInstanceOf(AddedThread);
+      expect(addedThread.id).toEqual('thread-123');
+      expect(addedThread.title).toEqual('Test Thread');
+      expect(addedThread.owner).toEqual('user-123');
+      
+      expect(threads[0].id).toEqual('thread-123');
+      expect(threads[0].title).toEqual('Test Thread');
+      expect(threads[0].body).toEqual('Test Body');
+      expect(threads[0].owner).toEqual('user-123');
     });
 
-    it('should return added thread correctly', async () => {
+    it('should return added thread correctly with different data', async () => {
       // Arrange
       const addThread = new AddThread({
-        title: 'Thread Title',
-        body: 'Thread Body',
+        title: 'Another Thread Title',
+        body: 'Another Thread Body',
       });
-
-      const owner= 'user-123';
+      const owner = 'user-456';
       const fakeIdGenerator = () => '456';
       const threadRepositoryPostgres = new ThreadRepositoryPostgres(pool, fakeIdGenerator);
 
@@ -76,11 +81,10 @@ describe('ThreadRepositoryPostgres', () => {
       const addedThread = await threadRepositoryPostgres.addThread(addThread, owner);
 
       // Assert
-      expect(addedThread).toStrictEqual(new AddedThread({
-        id: 'thread-456',
-        title: 'Thread Title',
-        owner: 'user-123',
-      }));
+      expect(addedThread).toBeInstanceOf(AddedThread);
+      expect(addedThread.id).toEqual('thread-456');
+      expect(addedThread.title).toEqual('Another Thread Title');
+      expect(addedThread.owner).toEqual('user-456');
     });
   });
 
@@ -104,6 +108,7 @@ describe('ThreadRepositoryPostgres', () => {
       expect(thread.title).toEqual('Test Thread');
       expect(thread.body).toEqual('Test Body');
       expect(thread.owner).toEqual('user-123');
+      expect(thread.created_at).toBeDefined();
     });
 
     it('should throw NotFoundError when thread not found', async () => { 
@@ -111,17 +116,16 @@ describe('ThreadRepositoryPostgres', () => {
       const threadRepositoryPostgres = new ThreadRepositoryPostgres(pool, {});
 
       // Action & Assert
-      await expect(threadRepositoryPostgres.getThreadById('thread-xxx'))
+      await expect(threadRepositoryPostgres.getThreadById('thread-nonexistent'))
         .rejects.toThrowError(NotFoundError);
     });
   });
 
   describe('getThreadDetailById function', () => {
-    it('should return thread detail with comments correctly', async () => {
+    it('should return raw thread detail data correctly', async () => {
       // Arrange
       const threadId = 'thread-123';
       
-      // Tambah thread
       await ThreadsTableTestHelper.addThread({
         id: threadId,
         title: 'Test Thread',
@@ -130,17 +134,15 @@ describe('ThreadRepositoryPostgres', () => {
         created_at: '2021-08-08T07:19:09.775Z',
       });
 
-      // Tambah comment aktif
       await CommentsTableTestHelper.addComment({
         id: 'comment-123',
         content: 'Sebuah komentar',
         thread_id: threadId,
         owner: 'user-456',
-        is_delete: false,
+        is_delete: false,  
         created_at: '2021-08-08T07:22:33.555Z',
       });
 
-      // Tambah comment yang dihapus
       await CommentsTableTestHelper.addComment({
         id: 'comment-456',
         content: 'Komentar yang dihapus',
@@ -153,28 +155,31 @@ describe('ThreadRepositoryPostgres', () => {
       const threadRepositoryPostgres = new ThreadRepositoryPostgres(pool, {});
 
       // Action
-      const threadDetail = await threadRepositoryPostgres.getThreadDetailById(threadId);
+      const rawData = await threadRepositoryPostgres.getThreadDetailById(threadId);
 
       // Assert
-      expect(threadDetail).toBeInstanceOf(GetThread);
-      expect(threadDetail.id).toEqual(threadId);
-      expect(threadDetail.title).toEqual('Test Thread');
-      expect(threadDetail.body).toEqual('Test Body');
-      expect(threadDetail.username).toEqual('dicoding');
-      expect(threadDetail.comments).toHaveLength(2);
+      expect(Array.isArray(rawData)).toBe(true);
+      expect(rawData).toHaveLength(2); 
       
-      // Comment pertama (aktif)
-      expect(threadDetail.comments[0].id).toEqual('comment-123');
-      expect(threadDetail.comments[0].username).toEqual('johndoe');
-      expect(threadDetail.comments[0].content).toEqual('Sebuah komentar');
+      expect(rawData[0]).toHaveProperty('id', threadId);
+      expect(rawData[0]).toHaveProperty('title', 'Test Thread');
+      expect(rawData[0]).toHaveProperty('body', 'Test Body');
+      expect(rawData[0]).toHaveProperty('username', 'dicoding');
+      expect(rawData[0]).toHaveProperty('date');
       
-      // Comment kedua (dihapus)
-      expect(threadDetail.comments[1].id).toEqual('comment-456');
-      expect(threadDetail.comments[1].username).toEqual('dicoding');
-      expect(threadDetail.comments[1].content).toEqual('**komentar telah dihapus**');
+      expect(rawData[0]).toHaveProperty('comment_id', 'comment-123');
+      expect(rawData[0]).toHaveProperty('comment_content', 'Sebuah komentar');
+      expect(rawData[0]).toHaveProperty('comment_is_delete', false);
+      expect(rawData[0]).toHaveProperty('comment_username', 'johndoe');
+      expect(rawData[0]).toHaveProperty('comment_date');
+      
+      expect(rawData[1]).toHaveProperty('comment_id', 'comment-456');
+      expect(rawData[1]).toHaveProperty('comment_content', 'Komentar yang dihapus');
+      expect(rawData[1]).toHaveProperty('comment_is_delete', true);
+      expect(rawData[1]).toHaveProperty('comment_username', 'dicoding');
     });
 
-    it('should return thread detail without comments correctly', async () => {
+    it('should return raw data for thread without comments', async () => {
       // Arrange
       const threadId = 'thread-789';
       
@@ -189,15 +194,15 @@ describe('ThreadRepositoryPostgres', () => {
       const threadRepositoryPostgres = new ThreadRepositoryPostgres(pool, {});
 
       // Action
-      const threadDetail = await threadRepositoryPostgres.getThreadDetailById(threadId);
+      const rawData = await threadRepositoryPostgres.getThreadDetailById(threadId);
 
       // Assert
-      expect(threadDetail).toBeInstanceOf(GetThread);
-      expect(threadDetail.id).toEqual(threadId);
-      expect(threadDetail.title).toEqual('Thread Tanpa Komentar');
-      expect(threadDetail.body).toEqual('Body thread tanpa komentar');
-      expect(threadDetail.username).toEqual('dicoding');
-      expect(threadDetail.comments).toHaveLength(0);
+      expect(Array.isArray(rawData)).toBe(true);
+      expect(rawData).toHaveLength(1);
+      expect(rawData[0]).toHaveProperty('id', threadId);
+      expect(rawData[0]).toHaveProperty('title', 'Thread Tanpa Komentar');
+      expect(rawData[0]).toHaveProperty('comment_id', null);
+      expect(rawData[0]).toHaveProperty('comment_content', null);
     });
 
     it('should throw NotFoundError when thread not found', async () => {
@@ -220,14 +225,13 @@ describe('ThreadRepositoryPostgres', () => {
         owner: 'user-123',
       });
 
-      // Tambah comment dengan urutan waktu berbeda
       await CommentsTableTestHelper.addComment({
         id: 'comment-002',
         content: 'Komentar kedua',
-        thread_id: threadId,
+        thread_id: threadId,    
         owner: 'user-456',
-        is_delete: false,
-        created_at: '2021-08-08T07:25:00.000Z', // Lebih baru
+        is_delete: false,     
+        created_at: '2021-08-08T07:25:00.000Z', // Later timestamp
       });
 
       await CommentsTableTestHelper.addComment({
@@ -236,18 +240,22 @@ describe('ThreadRepositoryPostgres', () => {
         thread_id: threadId,
         owner: 'user-123',
         is_delete: false,
-        created_at: '2021-08-08T07:20:00.000Z', // Lebih lama
+        created_at: '2021-08-08T07:20:00.000Z', // Earlier timestamp
       });
 
       const threadRepositoryPostgres = new ThreadRepositoryPostgres(pool, {});
 
       // Action
-      const threadDetail = await threadRepositoryPostgres.getThreadDetailById(threadId);
+      const rawData = await threadRepositoryPostgres.getThreadDetailById(threadId);
 
       // Assert
-      expect(threadDetail.comments).toHaveLength(2);
-      expect(threadDetail.comments[0].id).toEqual('comment-001'); // Yang lebih lama dulu
-      expect(threadDetail.comments[1].id).toEqual('comment-002'); // Yang lebih baru kemudian
+      expect(rawData).toHaveLength(2);
+      expect(rawData[0]).toHaveProperty('comment_id', 'comment-001'); // Earlier comment first
+      expect(rawData[1]).toHaveProperty('comment_id', 'comment-002'); // Later comment second
+      
+      const firstCommentDate = new Date(rawData[0].comment_date);
+      const secondCommentDate = new Date(rawData[1].comment_date);
+      expect(firstCommentDate.getTime()).toBeLessThan(secondCommentDate.getTime());
     });
   });
 });

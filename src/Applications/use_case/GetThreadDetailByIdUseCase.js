@@ -1,10 +1,17 @@
-class GetThreadDetailUseCase {
+const ThreadDetailService = require('../../Domains/threads/services/ThreadDetailService');
+const GetThread = require('../../Domains/threads/entities/GetThread');
+
+class GetThreadDetailByIdUseCase {
   constructor({ threadRepository }) {
     this._threadRepository = threadRepository;
   }
 
   async execute(threadId) {
-    const thread = await this._threadRepository.getThreadDetailById(threadId);
+    const rawThreadData = await this._threadRepository.getThreadDetailById(threadId);
+    
+    const formattedData = ThreadDetailService.formatThreadDetail(rawThreadData);
+    
+    const thread = new GetThread(formattedData);
     
     return {
       id: thread.id,
@@ -17,4 +24,4 @@ class GetThreadDetailUseCase {
   }
 }
 
-module.exports = GetThreadDetailUseCase;
+module.exports = GetThreadDetailByIdUseCase;

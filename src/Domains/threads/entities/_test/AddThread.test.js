@@ -1,10 +1,11 @@
 const AddThread = require('../AddThread');
 
-describe('an AddThread entity', () => {
+describe('AddThread entity', () => {
   it('should throw error when payload did not contain needed property', () => {
     // Arrange
     const payload = {
       title: 'sebuah thread',
+      // body missing
     };
 
     // Action & Assert
@@ -14,8 +15,8 @@ describe('an AddThread entity', () => {
   it('should throw error when payload did not meet data type specification', () => {
     // Arrange
     const payload = {
-      title: 123,
-      body: true,
+      title: 123, // should be string
+      body: true, // should be string
     };
 
     // Action & Assert
@@ -25,7 +26,7 @@ describe('an AddThread entity', () => {
   it('should throw error when title contains more than 100 characters', () => {
     // Arrange
     const payload = {
-      title: 'a'.repeat(101),
+      title: 'a'.repeat(101), // 101 characters
       body: 'isi thread',
     };
 
@@ -46,5 +47,21 @@ describe('an AddThread entity', () => {
     // Assert
     expect(addThread.title).toEqual(payload.title);
     expect(addThread.body).toEqual(payload.body);
+  });
+
+  it('should create AddThread object with exactly 100 characters title', () => {
+    // Arrange
+    const payload = {
+      title: 'a'.repeat(100), // Exactly 100 characters
+      body: 'Isi thread',
+    };
+
+    // Action
+    const addThread = new AddThread(payload);
+
+    // Assert
+    expect(addThread.title).toEqual(payload.title);
+    expect(addThread.body).toEqual(payload.body);
+    expect(addThread.title.length).toEqual(100);
   });
 });

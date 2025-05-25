@@ -10,12 +10,25 @@ describe('DeleteCommentUseCase', () => {
     const threadId = 'thread-123';
 
     const mockThreadRepository = {
-      getThreadById: jest.fn(() => Promise.resolve({ id: threadId })),
+      getThreadById: jest.fn(() => Promise.resolve({
+        id: 'thread-123',
+        title: 'Some Thread Title',
+        body: 'Some thread body',
+        owner: 'user-456',
+        created_at: '2021-08-08T07:19:09.775Z'
+      })),
     };
 
     const mockCommentRepository = {
-      findCommentById: jest.fn(() => Promise.resolve([{ id: commentId, owner }])),
-      deleteComment: jest.fn(() => Promise.resolve()),
+      findCommentById: jest.fn(() => Promise.resolve([{
+        id: 'comment-123',
+        content: 'Some comment content',
+        owner: 'user-123', 
+        thread_id: 'thread-123',
+        is_delete: false,
+        created_at: '2021-08-08T07:22:33.555Z'
+      }])),
+      deleteComment: jest.fn(() => Promise.resolve(1)), 
     };
 
     const deleteCommentUseCase = new DeleteCommentUseCase({
@@ -36,7 +49,7 @@ describe('DeleteCommentUseCase', () => {
     // Arrange
     const commentId = 'comment-123';
     const owner = 'user-123';
-    const threadId = 'thread-123';
+    const threadId = 'thread-nonexistent';
 
     const mockThreadRepository = {
       getThreadById: jest.fn(() => Promise.reject(new NotFoundError('Thread tidak ditemukan'))),
@@ -66,9 +79,9 @@ describe('DeleteCommentUseCase', () => {
     // Arrange
     const commentId = 'comment-123';
     const owner = 'user-123';
-    const threadId = 'thread-123';
+    const threadId = 'thread-nonexistent';
 
-    const customError = new Error('Custom thread not found');
+    const customError = new Error('Thread with id thread-nonexistent not found in database');
     customError.name = 'NotFoundError';
 
     const mockThreadRepository = {
@@ -101,7 +114,8 @@ describe('DeleteCommentUseCase', () => {
     const owner = 'user-123';
     const threadId = 'thread-123';
 
-    const databaseError = new Error('Database connection failed');
+    const databaseError = new Error('Connection to database failed: timeout after 5000ms');
+    databaseError.code = 'ECONNREFUSED';
 
     const mockThreadRepository = {
       getThreadById: jest.fn(() => Promise.reject(databaseError)),
@@ -120,7 +134,7 @@ describe('DeleteCommentUseCase', () => {
     // Action & Assert
     await expect(deleteCommentUseCase.execute(commentId, owner, threadId))
       .rejects
-      .toThrow('Database connection failed');
+      .toThrow('Connection to database failed: timeout after 5000ms');
 
     expect(mockThreadRepository.getThreadById).toBeCalledWith(threadId);
     expect(mockCommentRepository.findCommentById).not.toBeCalled();
@@ -129,12 +143,18 @@ describe('DeleteCommentUseCase', () => {
 
   it('should throw NotFoundError when comment is not found', async () => {
     // Arrange
-    const commentId = 'comment-123';
+    const commentId = 'comment-nonexistent';
     const owner = 'user-123';
     const threadId = 'thread-123';
 
     const mockThreadRepository = {
-      getThreadById: jest.fn(() => Promise.resolve({ id: threadId })),
+      getThreadById: jest.fn(() => Promise.resolve({
+        id: 'thread-123',
+        title: 'Existing Thread',
+        body: 'Thread body content',
+        owner: 'user-456',
+        created_at: '2021-08-08T07:19:09.775Z'
+      })),
     };
 
     const mockCommentRepository = {
@@ -160,16 +180,29 @@ describe('DeleteCommentUseCase', () => {
   it('should throw AuthorizationError when user is not the owner', async () => {
     // Arrange
     const commentId = 'comment-123';
-    const owner = 'user-123';
-    const differentOwner = 'user-456';
+    const requestingUser = 'user-123';
+    const commentOwner = 'user-456'; 
     const threadId = 'thread-123';
 
     const mockThreadRepository = {
-      getThreadById: jest.fn(() => Promise.resolve({ id: threadId })),
+      getThreadById: jest.fn(() => Promise.resolve({
+        id: 'thread-123',
+        title: 'Some Thread',
+        body: 'Thread content',
+        owner: 'user-789',
+        created_at: '2021-08-08T07:19:09.775Z'
+      })),
     };
 
     const mockCommentRepository = {
-      findCommentById: jest.fn(() => Promise.resolve([{ id: commentId, owner: differentOwner }])),
+      findCommentById: jest.fn(() => Promise.resolve([{
+        id: 'comment-123',
+        content: 'Comment from different user',
+        owner: commentOwner,
+        thread_id: 'thread-123',
+        is_delete: false,
+        created_at: '2021-08-08T07:22:33.555Z'
+      }])),
       deleteComment: jest.fn(),
     };
 
@@ -179,7 +212,7 @@ describe('DeleteCommentUseCase', () => {
     });
 
     // Action & Assert
-    await expect(deleteCommentUseCase.execute(commentId, owner, threadId))
+    await expect(deleteCommentUseCase.execute(commentId, requestingUser, threadId))
       .rejects
       .toThrow(AuthorizationError);
 

@@ -1,5 +1,6 @@
 const AddCommentUseCase = require('../AddCommentUseCase');
 const AddComment = require('../../../Domains/comments/entities/AddComment');
+const AddedComment = require('../../../Domains/comments/entities/AddedComment');
 const NotFoundError = require('../../../Commons/exceptions/NotFoundError');
 
 describe('AddCommentUseCase', () => {
@@ -11,18 +12,16 @@ describe('AddCommentUseCase', () => {
     const threadId = 'thread-123';
     const owner = 'user-123';
 
-    const expectedAddedComment = {
-      id: 'comment-123',
-      content: useCasePayload.content,
-      owner,
-    };
-
     const mockThreadRepository = {
       getThreadById: jest.fn(() => Promise.resolve({ id: threadId })),
     };
 
     const mockCommentRepository = {
-      addComment: jest.fn().mockResolvedValue(expectedAddedComment),
+      addComment: jest.fn(() => Promise.resolve(new AddedComment({
+        id: 'comment-456',
+        content: 'Mock comment content',
+        owner: 'mock-owner',
+      }))),
     };
 
     const addCommentUseCase = new AddCommentUseCase({
@@ -35,19 +34,23 @@ describe('AddCommentUseCase', () => {
 
     // Assert
     expect(mockThreadRepository.getThreadById).toBeCalledWith(threadId);
+    
     expect(mockCommentRepository.addComment).toBeCalledWith(
-      expect.any(AddComment), 
+      expect.objectContaining({
+        content: useCasePayload.content,
+      }),
       threadId,
       owner,
     );
 
     const calledAddComment = mockCommentRepository.addComment.mock.calls[0][0];
+    expect(calledAddComment).toBeInstanceOf(AddComment);
     expect(calledAddComment.content).toEqual(useCasePayload.content);
     
     expect(addedComment).toStrictEqual({
-      id: expectedAddedComment.id,
-      content: expectedAddedComment.content,
-      owner: expectedAddedComment.owner,
+      id: 'comment-456',
+      content: 'Mock comment content',
+      owner: 'mock-owner',
     });
   });
 
@@ -174,5 +177,43 @@ describe('AddCommentUseCase', () => {
 
     expect(mockThreadRepository.getThreadById).toBeCalledWith(threadId);
     expect(mockCommentRepository.addComment).not.toBeCalled();
+  });
+
+  it('should return correct response format', async () => {
+    // Arrange
+    const useCasePayload = {
+      content: 'Test Comment',
+    };
+    const threadId = 'thread-123';
+    const owner = 'user-123';
+
+    const mockAddedComment = new AddedComment({
+      id: 'comment-999',
+      content: 'Repository comment',
+      owner: 'repository-owner',
+    });
+
+    const mockThreadRepository = {
+      getThreadById: jest.fn(() => Promise.resolve({ id: threadId })),
+    };
+
+    const mockCommentRepository = {
+      addComment: jest.fn(() => Promise.resolve(mockAddedComment)),
+    };
+
+    const addCommentUseCase = new AddCommentUseCase({
+      commentRepository: mockCommentRepository,
+      threadRepository: mockThreadRepository,
+    });
+
+    // Action
+    const result = await addCommentUseCase.execute(useCasePayload, threadId, owner);
+
+    expect(result).toHaveProperty('id');
+    expect(result).toHaveProperty('content');
+    expect(result).toHaveProperty('owner');
+    expect(typeof result.id).toBe('string');
+    expect(typeof result.content).toBe('string');
+    expect(typeof result.owner).toBe('string');
   });
 });

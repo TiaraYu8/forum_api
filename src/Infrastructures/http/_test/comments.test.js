@@ -9,13 +9,17 @@ const bcrypt = require('bcrypt');
 
 describe('Comments endpoint', () => {
   let accessToken;
+  let otherAccessToken;
   let threadId;
   let passwordHash;
 
-  beforeAll(async () => {
-    const passwordHash = new BcryptPasswordHash(bcrypt);
+  beforeEach(async () => {
+    await CommentsTableTestHelper.cleanTable();
+    await ThreadsTableTestHelper.cleanTable();
+    await UsersTableTestHelper.cleanTable();
 
-    // Tambah user
+    passwordHash = new BcryptPasswordHash(bcrypt);
+
     await UsersTableTestHelper.addUser({
       id: 'user-123',
       username: 'dicoding',
@@ -23,9 +27,17 @@ describe('Comments endpoint', () => {
       fullname: 'Dicoding Indonesia',
     });
 
-    // Buat server dan login untuk dapatkan accessToken
+    await UsersTableTestHelper.addUser({
+      id: 'user-456',
+      username: 'otheruser',
+      password: await passwordHash.hash('secret_password'),
+      fullname: 'Other User',
+    });
+
     const server = await createServer(container);
-    const loginResponse = await server.inject({
+
+    // Login user pertama
+    const loginResponse1 = await server.inject({
       method: 'POST',
       url: '/authentications',
       payload: {
@@ -34,10 +46,23 @@ describe('Comments endpoint', () => {
       },
     });
 
-    const loginResponseJson = JSON.parse(loginResponse.payload);
-    accessToken = loginResponseJson.data.accessToken;
+    const loginResponseJson1 = JSON.parse(loginResponse1.payload);
+    accessToken = loginResponseJson1.data.accessToken;
 
-    // Tambah thread untuk testing comment
+    // Login user kedua
+    const loginResponse2 = await server.inject({
+      method: 'POST',
+      url: '/authentications',
+      payload: {
+        username: 'otheruser',
+        password: 'secret_password',
+      },
+    });
+
+    const loginResponseJson2 = JSON.parse(loginResponse2.payload);
+    otherAccessToken = loginResponseJson2.data.accessToken;
+
+    // Buat thread untuk testing
     const threadResponse = await server.inject({
       method: 'POST',
       url: '/threads',
@@ -55,21 +80,24 @@ describe('Comments endpoint', () => {
   });
 
   afterEach(async () => {
+    // Cleanup setelah setiap test
     await CommentsTableTestHelper.cleanTable();
+    await ThreadsTableTestHelper.cleanTable();
+    await UsersTableTestHelper.cleanTable();
   });
 
   afterAll(async () => {
-    await ThreadsTableTestHelper.cleanTable();
-    await UsersTableTestHelper.cleanTable();
     await pool.end();
   });
 
   it('should response 201 and persisted comment', async () => {
+    // Arrange
     const server = await createServer(container);
     const requestPayload = {
       content: 'Ini komentar pertama',
     };
 
+    // Action
     const response = await server.inject({
       method: 'POST',
       url: `/threads/${threadId}/comments`,
@@ -79,23 +107,38 @@ describe('Comments endpoint', () => {
       },
     });
 
+    // Assert
     const responseJson = JSON.parse(response.payload);
     expect(response.statusCode).toEqual(201);
     expect(responseJson.status).toEqual('success');
     expect(responseJson.data.addedComment).toBeDefined();
-    expect(responseJson.data.addedComment.content).toEqual(requestPayload.content);
+    
+    expect(responseJson.data.addedComment).toEqual({
+      id: expect.any(String),
+      content: requestPayload.content,
+      owner: 'user-123',
+    });
 
-    // Verifikasi data tersimpan di database
     const comments = await CommentsTableTestHelper.findCommentById(responseJson.data.addedComment.id);
     expect(comments).toHaveLength(1);
+    expect(comments[0]).toEqual({
+      id: responseJson.data.addedComment.id,
+      content: requestPayload.content,
+      thread_id: threadId,
+      owner: 'user-123',
+      is_delete: false,
+      created_at: expect.any(Date),
+    });
   });
 
   it('should response 400 when request payload not contain needed property', async () => {
+    // Arrange
     const server = await createServer(container);
     const requestPayload = {
-      // content tidak ada
+      // Explicitly empty - content tidak ada
     };
 
+    // Action
     const response = await server.inject({
       method: 'POST',
       url: `/threads/${threadId}/comments`,
@@ -105,18 +148,22 @@ describe('Comments endpoint', () => {
       },
     });
 
+    // Assert
     const responseJson = JSON.parse(response.payload);
     expect(response.statusCode).toEqual(400);
     expect(responseJson.status).toEqual('fail');
     expect(responseJson.message).toBeDefined();
+    expect(typeof responseJson.message).toBe('string');
   });
 
   it('should response 400 when request payload not meet data type specification', async () => {
+    // Arrange
     const server = await createServer(container);
     const requestPayload = {
-      content: 12345, // harus string
+      content: 12345, // Explicitly wrong type - harus string
     };
 
+    // Action
     const response = await server.inject({
       method: 'POST',
       url: `/threads/${threadId}/comments`,
@@ -126,22 +173,26 @@ describe('Comments endpoint', () => {
       },
     });
 
+    // Assert
     const responseJson = JSON.parse(response.payload);
     expect(response.statusCode).toEqual(400);
     expect(responseJson.status).toEqual('fail');
     expect(responseJson.message).toBeDefined();
+    expect(typeof responseJson.message).toBe('string');
   });
 
   it('should response 200 and delete comment correctly', async () => {
+    // Arrange
     const server = await createServer(container);
 
-    // Tambah comment terlebih dahulu
+    const commentPayload = {
+      content: 'Komentar yang akan dihapus',
+    };
+
     const addCommentResponse = await server.inject({
       method: 'POST',
       url: `/threads/${threadId}/comments`,
-      payload: {
-        content: 'Komentar yang akan dihapus',
-      },
+      payload: commentPayload,
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -153,12 +204,11 @@ describe('Comments endpoint', () => {
     const commentId = addCommentJson.data.addedComment.id;
     expect(commentId).toBeDefined();
 
-    console.log('[comment.test] commentId: ', commentId);
-
     const commentsBeforeDelete = await CommentsTableTestHelper.findCommentById(commentId);
     expect(commentsBeforeDelete).toHaveLength(1);
+    expect(commentsBeforeDelete[0].is_delete).toBe(false);
 
-    // Delete comment
+    // Action
     const deleteResponse = await server.inject({
       method: 'DELETE',
       url: `/threads/${threadId}/comments/${commentId}`,
@@ -167,75 +217,69 @@ describe('Comments endpoint', () => {
       },
     });
 
+    // Assert
     const deleteResponseJson = JSON.parse(deleteResponse.payload);
-
-    console.log('Delete response:', deleteResponse.statusCode, deleteResponseJson);
-
     expect(deleteResponse.statusCode).toEqual(200);
     expect(deleteResponseJson.status).toEqual('success');
     expect(deleteResponseJson.data).toBeUndefined();
 
-    // Verifikasi comment sudah terhapus
     const verification = await CommentsTableTestHelper.verifyCommentSoftDeleted(commentId);
-    expect(verification.exists).toBe(true);
-    expect(verification.isSoftDeleted).toBe(true);
+    expect(verification).toEqual({
+      exists: true,
+      isSoftDeleted: true,
+      comment: expect.objectContaining({
+        id: commentId,
+        content: commentPayload.content,
+        is_delete: true,
+      }),
+    });
   });
 
   it('should response 404 when delete comment that does not exist', async () => {
+    // Arrange
     const server = await createServer(container);
+    const nonExistentCommentId = 'comment-xyz';
 
+    // Action
     const response = await server.inject({
       method: 'DELETE',
-      url: `/threads/${threadId}/comments/comment-xyz`, // comment id yang tidak ada
+      url: `/threads/${threadId}/comments/${nonExistentCommentId}`,
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
     });
 
+    // Assert
     const responseJson = JSON.parse(response.payload);
     expect(response.statusCode).toEqual(404);
     expect(responseJson.status).toEqual('fail');
     expect(responseJson.message).toBeDefined();
+    expect(typeof responseJson.message).toBe('string');
   });
 
   it('should response 403 when user is not the owner', async () => {
+    // Arrange
     const server = await createServer(container);
-  
-    // Buat user kedua
-    const passwordHash = new BcryptPasswordHash(bcrypt);
-    await UsersTableTestHelper.addUser({
-      id: 'user-456',
-      username: 'otheruser',
-      password: await passwordHash.hash('secret_password'),
-      fullname: 'Other User',
-    });
-  
-    // Login sebagai user kedua
-    const loginResponse = await server.inject({
-      method: 'POST',
-      url: '/authentications',
-      payload: {
-        username: 'otheruser',
-        password: 'secret_password',
-      },
-    });
-    const otherAccessToken = JSON.parse(loginResponse.payload).data.accessToken;
-  
-    // Tambah comment sebagai user pertama
+    
+    const commentPayload = {
+      content: 'Komentar milik user pertama',
+    };
+
     const addCommentResponse = await server.inject({
       method: 'POST',
       url: `/threads/${threadId}/comments`,
-      payload: {
-        content: 'Komentar milik user pertama',
-      },
+      payload: commentPayload,
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
     });
     
+    expect(addCommentResponse.statusCode).toEqual(201);
     const commentId = JSON.parse(addCommentResponse.payload).data.addedComment.id;
-  
-    // Coba hapus sebagai user kedua
+
+    const comment = await CommentsTableTestHelper.findCommentById(commentId);
+    expect(comment[0].owner).toEqual('user-123');
+
     const deleteResponse = await server.inject({
       method: 'DELETE',
       url: `/threads/${threadId}/comments/${commentId}`,
@@ -243,10 +287,16 @@ describe('Comments endpoint', () => {
         Authorization: `Bearer ${otherAccessToken}`,
       },
     });
-  
+
+    // Assert
     const responseJson = JSON.parse(deleteResponse.payload);
     expect(deleteResponse.statusCode).toEqual(403);
     expect(responseJson.status).toEqual('fail');
     expect(responseJson.message).toBeDefined();
+    expect(typeof responseJson.message).toBe('string');
+
+    const commentAfterFailedDelete = await CommentsTableTestHelper.findCommentById(commentId);
+    expect(commentAfterFailedDelete).toHaveLength(1);
+    expect(commentAfterFailedDelete[0].is_delete).toBe(false);
   });
 });

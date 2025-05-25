@@ -28,9 +28,7 @@ class ThreadRepositoryPostgres extends ThreadRepository {
   async getThreadById(id) {
     const query = {
       text: `
-        SELECT threads.id, threads.title, threads.body, threads.created_at as date, threads.owner
-        FROM threads
-        WHERE threads.id = $1
+        SELECT id, title, body, owner, created_at FROM threads WHERE id = $1
       `,
       values: [id],
     };
@@ -81,32 +79,7 @@ class ThreadRepositoryPostgres extends ThreadRepository {
       if (!result.rowCount) {
         throw new NotFoundError('Thread tidak ditemukan');
       }
-
-      // Process hasil query
-      const threadData = result.rows[0];
-      const comments = result.rows
-        .filter(row => row.comment_id)
-        .map(row => ({
-          id: row.comment_id,
-          username: row.comment_username,
-          date: row.comment_date,
-          content: row.comment_is_delete ? '**komentar telah dihapus**' : row.comment_content,
-        }));
-
-      console.log('Processed comments:', comments);
-
-      const getThread = new GetThread({
-        id: threadData.id,
-        title: threadData.title,
-        body: threadData.body,
-        date: threadData.date,
-        username: threadData.username,
-        comments,
-      });
-
-      console.log('Created GetThread:', getThread);
-
-      return getThread;
+      return result.rows;
     } catch (error) {
       console.error('Repository error:', error); 
       throw error;
