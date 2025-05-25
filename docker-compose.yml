@@ -3,7 +3,7 @@ version: '3.8'
 
 services:
   app:
-    image: ${DOCKER_IMAGE:-tiarayu/forum-api:latest}
+    image: ${DOCKER_IMAGE:-tiarayu/forum-api}
     build: .
     ports:
       - "5000:5000"
