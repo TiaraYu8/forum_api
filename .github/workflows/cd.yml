@@ -1,27 +1,69 @@
 name: Continuous Deployment
- 
+
 on: 
   push:
     branches:
       - master
- 
+
 jobs:
   deploy:
     environment: forum_api_project
     runs-on: ubuntu-latest
- 
+
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
     - name: SSH and deploy app
-      uses: appleboy/ssh-action@master
+      uses: appleboy/ssh-action@v1.0.0
       with:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_PRIVATE_KEY }}
         port: ${{ secrets.SSH_PORT }}
         script: |
-          cd ~/forum_api
-          git pull origin main
-          npm install
-          npm run migrate up
-          pm2 restart forum-api
+          echo " Starting deployment..."
           
+          # Navigate to project directory
+          cd ~/forum_api || exit 1
+          
+          # Pull latest changes
+          echo " Pulling latest code..."
+          git pull origin main
+          
+          # Install dependencies
+          echo " Installing dependencies..."
+          npm install --production
+          
+          # Run database migrations
+          echo " Running migrations..."
+          npm run migrate up
+          
+          # Install and configure NGINX
+          echo " Setting up NGINX..."
+          sudo yum update -y
+          sudo yum install -y nginx
+          
+          # Copy NGINX configuration
+          sudo cp ~/forum_api/nginx.conf /etc/nginx/nginx.conf
+          
+          # Test NGINX configuration
+          sudo nginx -t
+          
+          # Enable and start NGINX
+          sudo systemctl enable nginx
+          sudo systemctl restart nginx
+          
+          # Update Node.js app to run on localhost:5000
+          echo "Restarting application..."
+          pm2 restart forum-api || pm2 start src/app.js --name forum-api
+          
+          # Save PM2 configuration
+          pm2 save
+          
+          # Check services status
+          echo "Checking services..."
+          sudo systemctl status nginx --no-pager
+          pm2 status
+          
+          echo "Deployment completed successfully!"
