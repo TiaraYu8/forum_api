@@ -35,24 +35,24 @@ const createServer = async (container) => {
 
   server.auth.default('forumapi_jwt');
 
-  // server.route({
-  //   method: 'GET',
-  //   path: '/',
-  //   handler: () => {
-  //     return {
-  //       status: 'success',
-  //       message: 'Hello World! Forum API is running',
-  //       data: {
-  //         name: 'Forum API',
-  //         version: '1.0.0',
-  //         description: 'A simple forum API built with Hapi.js',
-  //       },
-  //     };
-  //   },
-  //   options: {
-  //     auth: false,
-  //   },
-  // });
+  server.route({
+    method: 'GET',
+    path: '/',
+    handler: () => {
+      return {
+        status: 'success',
+        message: 'Hello World! Forum API is running',
+        data: {
+          name: 'Forum API',
+          version: '1.0.0',
+          description: 'A simple forum API built with Hapi.js',
+        },
+      };
+    },
+    options: {
+      auth: false,
+    },
+  });
 
   await server.register([
     {
